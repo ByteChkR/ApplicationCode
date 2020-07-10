@@ -1,6 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 
 public class ControllerDisplay : MonoBehaviour
@@ -9,13 +7,7 @@ public class ControllerDisplay : MonoBehaviour
     public Text StateText;
     public Text AccelText;
     public Text VelocText;
-
-    // Start is called before the first frame update
-    private void Start()
-    {
-
-    }
-
+    
     // Update is called once per frame
     private void LateUpdate()
     {

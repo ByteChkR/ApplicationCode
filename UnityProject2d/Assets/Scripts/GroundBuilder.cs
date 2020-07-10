@@ -1,6 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 public class GroundBuilder : MonoBehaviour
 {
@@ -9,7 +7,7 @@ public class GroundBuilder : MonoBehaviour
     public GameObject StaticCube;
 
     // Start is called before the first frame update
-    void Start()
+    private void Start()
     {
         int amount = 50;
         for (int i = 0; i < amount; i++)
@@ -27,11 +25,5 @@ public class GroundBuilder : MonoBehaviour
                 Instantiate(StaticCube, pos, Quaternion.identity);
             }
         }
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-
     }
 }

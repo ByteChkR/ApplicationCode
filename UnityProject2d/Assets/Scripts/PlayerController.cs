@@ -1,16 +1,6 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Linq;
-using JetBrains.Annotations;
 using UnityEngine;
-
-[Serializable]
-public class MovementVisualization
-{
-    public Material Material;
-    public PlayerControllerState State;
-}
 
 [RequireComponent(typeof(Rigidbody)), RequireComponent(typeof(SpriteRenderer))]
 public class PlayerController : MonoBehaviour
@@ -125,8 +115,6 @@ public class PlayerController : MonoBehaviour
         {
             SetPlayerControllerState(PlayerControllerState.Idle);
         }
-
-        //Debug.Log("Controller State: " + state);
     }
 
 
