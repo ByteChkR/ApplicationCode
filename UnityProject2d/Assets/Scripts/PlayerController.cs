@@ -19,23 +19,22 @@ public class PlayerController : MonoBehaviour
     {
         get
         {
+            //Check all Rays if any hit the ground.
             RaycastHit hL, hR, hC;
-            if (Physics.Raycast(GroundRayCenter, out hC, 1000, GroundMask) && hC.distance < DistanceUntilUngrounded)
-            {
-                return true;
-            }
-            else if (Physics.Raycast(GroundRayLeft, out hL, 1000, GroundMask) &&
-                     hL.distance < DistanceUntilUngrounded)
-            {
-                return true;
-            }
-            else if (Physics.Raycast(GroundRayRight, out hR, 1000, GroundMask) &&
-                     hR.distance < DistanceUntilUngrounded)
+            if (Physics.Raycast(GroundRayCenter, out hC, 1000, GroundMask) && 
+                hC.distance < DistanceUntilUngrounded)
             {
                 return true;
             }
 
-            return false;
+            if (Physics.Raycast(GroundRayLeft, out hL, 1000, GroundMask) &&
+                hL.distance < DistanceUntilUngrounded)
+            {
+                return true;
+            }
+
+            return Physics.Raycast(GroundRayRight, out hR, 1000, GroundMask) &&
+                   hR.distance < DistanceUntilUngrounded;
         }
     }
 
@@ -57,6 +56,8 @@ public class PlayerController : MonoBehaviour
     public float RunSpeedRight;
     public float ForwardJumpForce;
     public float UpwardJumpForce;
+
+    //The Distance from the Origin to the Ground at which the player is marked as Grounded again
     public float DistanceUntilUngrounded;
 
 
