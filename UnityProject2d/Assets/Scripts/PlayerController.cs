@@ -7,13 +7,38 @@ public class PlayerController : MonoBehaviour
 {
     private Rigidbody playerBody;
     private SpriteRenderer renderer;
-    private Ray GroundRay => new Ray(transform.position, Vector3.down);
+    private Ray GroundRayRight => new Ray(transform.position + Vector3.right * 0.5f, Vector3.down);
+    private Ray GroundRayLeft => new Ray(transform.position + Vector3.left * 0.5f, Vector3.down);
+    private Ray GroundRayCenter => new Ray(transform.position, Vector3.down);
 
     public PlayerControllerState ControllerState { get; private set; } = PlayerControllerState.Idle;
     [Header("Ground Detection")]
     public LayerMask GroundMask;
 
-    public bool IsGrounded => Physics.Raycast(GroundRay, out RaycastHit info, 1000, GroundMask) && info.distance < DistanceUntilUngrounded;
+    public bool IsGrounded
+    {
+        get
+        {
+            RaycastHit hL, hR, hC;
+            if (Physics.Raycast(GroundRayCenter, out hC, 1000, GroundMask) && hC.distance < DistanceUntilUngrounded)
+            {
+                return true;
+            }
+            else if (Physics.Raycast(GroundRayLeft, out hL, 1000, GroundMask) &&
+                     hL.distance < DistanceUntilUngrounded)
+            {
+                return true;
+            }
+            else if (Physics.Raycast(GroundRayRight, out hR, 1000, GroundMask) &&
+                     hR.distance < DistanceUntilUngrounded)
+            {
+                return true;
+            }
+
+            return false;
+        }
+    }
+
     public Vector2 Velocity => playerBody.velocity;
     public Vector2 Acceleration { get; private set; }
 
@@ -43,30 +68,42 @@ public class PlayerController : MonoBehaviour
         playerBody = GetComponent<Rigidbody>();
     }
 
+
     // Update is called once per frame
     private void Update()
     {
-        Vector2 controllerForce = Vector2.zero;
+        //Create Horizontal Input
+        Vector2 controllerForce = CreateMovementInput(out bool running);
+        //Create Vertical Input
+        controllerForce = CreateJumpInput(controllerForce, out bool jumped);
+        //Multiplying by delta time.
+        controllerForce *= Time.deltaTime;
 
-        //The Diagram states that there is no transition from any state to runnning except Walking
-        float runToggle = ControllerState == PlayerControllerState.Walking || ControllerState == PlayerControllerState.Running ? RunToggle.GetActivation() : 0;
+        //Update the State Machine
+        SetStateMachine(jumped, controllerForce, running);
 
-        //Based on the information wether we are running or not we are selecting the right Speed Values.
-        float mSpeedLeft = Math.Abs(runToggle) > 0.0001f ? RunSpeedLeft : WalkSpeedLeft;
-        float mSpeedRight = Math.Abs(runToggle) > 0.0001f ? RunSpeedRight : WalkSpeedRight;
+        //Applying the Force to the RigidBody
+        Acceleration = controllerForce;
+        playerBody.AddForce(controllerForce, ForceMode.Acceleration);
+    }
 
-        //Get the Input from the InputBindings.
-        float inputLeft = Left.GetActivation(); //Range [0, 1]
-        float inputRight = Right.GetActivation(); //Range [0, 1]
 
-        if (ControllerState == PlayerControllerState.Falling)
+    public void SetPlayerControllerState(PlayerControllerState newState)
+    {
+        ControllerState = newState;
+        //Set the material from the visualizations array.
+        renderer.sharedMaterial = Visualization.First(x => x.State == newState).Material;
+    }
+
+    #region State Machine
+
+    public void SetStateMachine(bool jumped, Vector2 currentAccel, bool running)
+    {
+
+        if (jumped)
         {
-            inputRight = inputLeft = 0;
+            SetPlayerControllerState(PlayerControllerState.Jumping);
         }
-
-        controllerForce.x = -mSpeedLeft * inputLeft; //Move to the Reft
-        controllerForce.x += mSpeedRight * inputRight; //Move to the Right
-
         bool grounded = IsGrounded;
         if (grounded && ControllerState == PlayerControllerState.Falling)
         {
@@ -76,33 +113,16 @@ public class PlayerController : MonoBehaviour
 
         //Set the state to walking if we are moving and not jumping/falling
         if (ControllerState != PlayerControllerState.Jumping && ControllerState != PlayerControllerState.Falling &&
-            (Math.Abs(inputRight) > 0.0001f || Math.Abs(inputLeft) > 0.0001f))
+            (Math.Abs(currentAccel.x) > 0.0001f || Math.Abs(currentAccel.y) > 0.0001f))
         {
             SetPlayerControllerState(PlayerControllerState.Walking);
         }
 
         //When we are currently walking but the Run button was pressed, we are changing the state to Running
-        if (ControllerState == PlayerControllerState.Walking && Mathf.Abs(runToggle) > 0.0001f)
+        if (ControllerState == PlayerControllerState.Walking && running)
         {
             SetPlayerControllerState(PlayerControllerState.Running);
         }
-
-
-        float jump = Jump.GetActivation() * (grounded ? 1 : 0); //Multiply by 0 if grounded(No jump while not grounded).
-        if (Math.Abs(jump) > 0.0001f)
-        {
-            SetPlayerControllerState(PlayerControllerState.Jumping);
-            controllerForce.x *= ForwardJumpForce * jump; //Possibility to add a bit of extra Horizontal Velocity when jumping
-            controllerForce.y = UpwardJumpForce * jump; //Upwards Motion
-        }
-
-
-        //Multiplying by delta time.
-        controllerForce *= Time.deltaTime;
-
-        //Applying the Force to the RigidBody
-        Acceleration = controllerForce;
-        playerBody.AddForce(controllerForce, ForceMode.Acceleration);
 
         //When we are not grounded and we are over the apex(velocity.y <= 0) we are falling
         if (!grounded && playerBody.velocity.y <= 0)
@@ -115,15 +135,52 @@ public class PlayerController : MonoBehaviour
         {
             SetPlayerControllerState(PlayerControllerState.Idle);
         }
+
     }
 
+    #endregion
 
-    public void SetPlayerControllerState(PlayerControllerState newState)
+    #region Movement Computation
+
+    private Vector2 CreateJumpInput(Vector2 baseInput, out bool jumped)
     {
-        ControllerState = newState;
-        //Set the material from the visualizations array.
-        renderer.sharedMaterial = Visualization.First(x => x.State == newState).Material;
+        jumped = false;
+        float jump = Jump.GetActivation() * (IsGrounded ? 1 : 0); //Multiply by 0 if grounded(No jump while not grounded).
+        if (Math.Abs(jump) > 0.0001f)
+        {
+            jumped = true;
+            baseInput.x *= ForwardJumpForce * jump; //Possibility to add a bit of extra Horizontal Velocity when jumping
+            baseInput.y = UpwardJumpForce * jump; //Upwards Motion
+        }
+
+        return baseInput;
     }
 
+    private Vector2 CreateMovementInput(out bool running)
+    {
+        Vector2 controllerForce = Vector2.zero;
+
+        //The Diagram states that there is no transition from any state to runnning except Walking
+        float runToggle = ControllerState == PlayerControllerState.Walking || ControllerState == PlayerControllerState.Running ? RunToggle.GetActivation() : 0;
+        running = Math.Abs(runToggle) > 0.0001f;
+        //Based on the information wether we are running or not we are selecting the right Speed Values.
+        float mSpeedLeft = running ? RunSpeedLeft : WalkSpeedLeft;
+        float mSpeedRight = running ? RunSpeedRight : WalkSpeedRight;
+
+        //Get the Input from the InputBindings.
+        float inputLeft = Left.GetActivation(); //Range [0, 1]
+        float inputRight = Right.GetActivation(); //Range [0, 1]
+
+        if (ControllerState == PlayerControllerState.Falling)
+        {
+            inputRight = inputLeft = 0;
+        }
+
+        controllerForce.x = -mSpeedLeft * inputLeft; //Move to the Reft
+        controllerForce.x += mSpeedRight * inputRight; //Move to the Right
+        return controllerForce;
+    }
+
+    #endregion
 
 }
